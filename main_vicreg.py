@@ -29,7 +29,7 @@ def get_arguments():
     parser = argparse.ArgumentParser(description="Pretrain a resnet model with VICReg", add_help=False)
 
     # Data
-    parser.add_argument("--data-dir", type=Path, default="/path/to/imagenet", required=True,
+    parser.add_argument("--data-dir", type=Path, default="../unitraj/media/shared/nuScenes", required=False,
                         help='Path to the image net dataset')
 
     # Checkpoints
@@ -70,7 +70,7 @@ def get_arguments():
     # Distributed
     parser.add_argument('--world-size', default=1, type=int,
                         help='number of distributed processes')
-    parser.add_argument('--local_rank', default=-1, type=int)
+    parser.add_argument('--rank', default=0, type=int)
     parser.add_argument('--dist-url', default='env://',
                         help='url used to set up distributed training')
 
@@ -80,6 +80,9 @@ def get_arguments():
 def main(args):
     torch.backends.cudnn.benchmark = True
     init_distributed_mode(args)
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '12355'
+    dist.init_process_group("gloo", rank=args.rank, world_size=args.world_size)
     print(args)
     gpu = torch.device(args.device)
 
@@ -91,7 +94,7 @@ def main(args):
 
     transforms = aug.TrainTransform()
 
-    dataset = datasets.ImageFolder(args.data_dir / "train", transforms)
+    dataset = datasets.ImageFolder(args.data_dir / "val", transforms) # TODO change to 'train' once train dataset is done
     sampler = torch.utils.data.distributed.DistributedSampler(dataset, shuffle=True)
     assert args.batch_size % args.world_size == 0
     per_device_batch_size = args.batch_size // args.world_size
@@ -126,7 +129,8 @@ def main(args):
 
     start_time = last_logging = time.time()
     scaler = torch.cuda.amp.GradScaler()
-    for epoch in range(start_epoch, args.epochs):
+    for epoch in range(start_epoch, start_epoch+args.epochs):
+        print('epoch ', epoch)
         sampler.set_epoch(epoch)
         for step, ((x, y), _) in enumerate(loader, start=epoch * len(loader)):
             x = x.cuda(gpu, non_blocking=True)
@@ -137,6 +141,7 @@ def main(args):
             optimizer.zero_grad()
             with torch.cuda.amp.autocast():
                 loss = model.forward(x, y)
+                print('loss ', loss.item())
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
