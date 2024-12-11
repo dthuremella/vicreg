@@ -141,7 +141,7 @@ def main(args):
             optimizer.zero_grad()
             with torch.cuda.amp.autocast():
                 loss = model.forward(x, y)
-                print('loss ', loss.item())
+                # print('loss ', loss.item())
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
@@ -158,6 +158,7 @@ def main(args):
                 print(json.dumps(stats))
                 print(json.dumps(stats), file=stats_file)
                 last_logging = current_time
+        print('loss ',loss.item())
         if args.rank == 0:
             state = dict(
                 epoch=epoch + 1,
