@@ -51,6 +51,8 @@ def get_arguments():
     # Optim
     parser.add_argument("--epochs", type=int, default=100,
                         help='Number of epochs')
+    parser.add_argument("--startep", type=int, default=1000,
+                        help='Number of epochs')
     parser.add_argument("--batch-size", type=int, default=2048,
                         help='Effective batch size (per worker batch size is [batch-size] / world-size)')
     parser.add_argument("--base-lr", type=float, default=0.2,
@@ -132,7 +134,7 @@ def main(args):
     else:
         start_epoch = 0
 
-    epoch = 211 # start_epoch
+    epoch = args.startep # start_epoch
     print('epoch ', epoch)
     sampler.set_epoch(epoch)
     x_embeddings = []
