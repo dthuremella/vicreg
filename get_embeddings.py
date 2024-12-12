@@ -130,7 +130,9 @@ def main(args):
     else:
         start_epoch = 0
 
-    epoch = start_epoch
+    start_time = last_logging = time.time()
+    scaler = torch.cuda.amp.GradScaler()
+    epoch = 211 # start_epoch
     print('epoch ', epoch)
     sampler.set_epoch(epoch)
     x_embeddings = []
