@@ -165,8 +165,8 @@ class VICReg(nn.Module):
     def forward(self, x, y):
         x = self.projector(self.backbone(x))
         y = self.projector(self.backbone(y))
-        x_emb = x.detach()
-        y_emb = y.detach()
+        x_emb = x.cpu().detach().numpy()
+        y_emb = y.cpu().detach().numpy()
 
         repr_loss = F.mse_loss(x, y)
 
