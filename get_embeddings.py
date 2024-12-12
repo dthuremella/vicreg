@@ -22,8 +22,8 @@ import torchvision.datasets as datasets
 
 import augmentations as aug
 from distributed import init_distributed_mode
-from main_vicreg import adjust_learning_rate, exclude_bias_and_norm
-from main_vicreg import VICReg, LARS, Projector
+from main_vicreg import adjust_learning_rate, exclude_bias_and_norm, off_diagonal
+from main_vicreg import VICReg, LARS, Projector, FullGatherLayer
 
 import resnet
 
@@ -109,7 +109,7 @@ def main(args):
         sampler=sampler,
     )
 
-    model = VICRegEmb(args).cuda(gpu)
+    model = VICReg(args).cuda(gpu)
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
     optimizer = LARS(
@@ -152,8 +152,44 @@ def main(args):
     with open("vicreg_embeddings.pkl", "wb") as f:
         pickle.dump(embeddings, f)
 
-class VICRegEmb(VICReg):
-  
+class VICReg(nn.Module):
+    def __init__(self, args):
+        super().__init__()
+        self.args = args
+        self.num_features = int(args.mlp.split("-")[-1])
+        self.backbone, self.embedding = resnet.__dict__[args.arch](
+            zero_init_residual=True
+        )
+        self.projector = Projector(args, self.embedding)
+
+    def forward(self, x, y):
+        x = self.projector(self.backbone(x))
+        y = self.projector(self.backbone(y))
+
+        repr_loss = F.mse_loss(x, y)
+
+        x = torch.cat(FullGatherLayer.apply(x), dim=0)
+        y = torch.cat(FullGatherLayer.apply(y), dim=0)
+        x = x - x.mean(dim=0)
+        y = y - y.mean(dim=0)
+
+        std_x = torch.sqrt(x.var(dim=0) + 0.0001)
+        std_y = torch.sqrt(y.var(dim=0) + 0.0001)
+        std_loss = torch.mean(F.relu(1 - std_x)) / 2 + torch.mean(F.relu(1 - std_y)) / 2
+
+        cov_x = (x.T @ x) / (self.args.batch_size - 1)
+        cov_y = (y.T @ y) / (self.args.batch_size - 1)
+        cov_loss = off_diagonal(cov_x).pow_(2).sum().div(
+            self.num_features
+        ) + off_diagonal(cov_y).pow_(2).sum().div(self.num_features)
+
+        loss = (
+            self.args.sim_coeff * repr_loss
+            + self.args.std_coeff * std_loss
+            + self.args.cov_coeff * cov_loss
+        )
+        return loss
+      
     def get_embeddings(self, x, y):
         x_emb = self.projector(self.backbone(x))
         y_emb = self.projector(self.backbone(y))
