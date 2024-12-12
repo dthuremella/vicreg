@@ -19,10 +19,11 @@ import torch.nn.functional as F
 from torch import nn, optim
 import torch.distributed as dist
 import torchvision.datasets as datasets
+import matplotlib.pyplot as plt
 
 import augmentations as aug
 from distributed import init_distributed_mode
-from main_vicreg import adjust_learning_rate, exclude_bias_and_norm, off_diagonal
+from main_vicreg import exclude_bias_and_norm, off_diagonal
 from main_vicreg import VICReg, LARS, Projector, FullGatherLayer
 
 import resnet
@@ -98,7 +99,8 @@ def main(args):
     transforms = aug.TrainTransform()
 
     dataset = datasets.ImageFolder(args.data_dir / "train", transforms) 
-    sampler = torch.utils.data.distributed.DistributedSampler(dataset, shuffle=True)
+    filenames = dataset.imgs
+    sampler = torch.utils.data.distributed.DistributedSampler(dataset, shuffle=False)
     assert args.batch_size % args.world_size == 0
     per_device_batch_size = args.batch_size // args.world_size
     loader = torch.utils.data.DataLoader(
@@ -130,25 +132,21 @@ def main(args):
     else:
         start_epoch = 0
 
-    start_time = last_logging = time.time()
-    scaler = torch.cuda.amp.GradScaler()
     epoch = 211 # start_epoch
     print('epoch ', epoch)
     sampler.set_epoch(epoch)
     x_embeddings = []
     y_embeddings = []
-    for step, ((x, y), _) in enumerate(loader, start=epoch * len(loader)):
+    for step, ((x, y), _) in enumerate(loader):
         x = x.cuda(gpu, non_blocking=True)
         y = y.cuda(gpu, non_blocking=True)
-
-        lr = adjust_learning_rate(args, optimizer, loader, step)
 
         optimizer.zero_grad()
         with torch.cuda.amp.autocast():
             loss, x_emb, y_emb = model.forward(x, y)
             x_embeddings.append(x_emb)
             y_embeddings.append(y_emb)
-    embeddings = {'x': x_embeddings, 'y': y_embeddings}
+    embeddings = {'x': x_embeddings, 'y': y_embeddings, 'id': filenames}
     with open("vicreg_embeddings.pkl", "wb") as f:
         pickle.dump(embeddings, f)
 
