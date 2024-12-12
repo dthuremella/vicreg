@@ -143,7 +143,7 @@ def main(args):
 
         optimizer.zero_grad()
         with torch.cuda.amp.autocast():
-            x_emb, y_emb = model.get_embeddings(x, y)
+            loss, x_emb, y_emb = model.forward(x, y)
             x_embeddings.append(x_emb)
             y_embeddings.append(y_emb)
     embeddings = {'x': x_embeddings, 'y': y_embeddings}
@@ -163,6 +163,8 @@ class VICReg(nn.Module):
     def forward(self, x, y):
         x = self.projector(self.backbone(x))
         y = self.projector(self.backbone(y))
+        x_emb = x.detach().copy()
+        y_emb = y.detach().copy()
 
         repr_loss = F.mse_loss(x, y)
 
@@ -186,12 +188,7 @@ class VICReg(nn.Module):
             + self.args.std_coeff * std_loss
             + self.args.cov_coeff * cov_loss
         )
-        return loss
-      
-    def get_embeddings(self, x, y):
-        x_emb = self.projector(self.backbone(x))
-        y_emb = self.projector(self.backbone(y))
-        return x_emb, y_emb
+        return loss, x_emb, y_emb
     
 
 if __name__ == "__main__":
