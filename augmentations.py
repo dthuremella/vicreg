@@ -39,7 +39,7 @@ class TrainTransform(object):
         self.transform = transforms.Compose(
             [
                 transforms.RandomResizedCrop(
-                    224, interpolation=InterpolationMode.BICUBIC
+                    224, interpolation=InterpolationMode.BICUBIC, scale=(0.9, 1.0)
                 ),
                 # transforms.RandomHorizontalFlip(p=0.5),
                 # transforms.RandomApply(
@@ -65,7 +65,7 @@ class TrainTransform(object):
                     15, interpolation=InterpolationMode.BICUBIC, fill=255
                 ),
                 transforms.RandomResizedCrop(
-                    224, interpolation=InterpolationMode.BICUBIC
+                    224, interpolation=InterpolationMode.BICUBIC, scale=(0.5, 0.9)
                 ),
                 # transforms.RandomHorizontalFlip(p=0.5),
                 # transforms.RandomApply(
