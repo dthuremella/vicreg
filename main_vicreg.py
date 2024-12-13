@@ -18,6 +18,7 @@ import torch.nn.functional as F
 from torch import nn, optim
 import torch.distributed as dist
 import torchvision.datasets as datasets
+import matplotlib.pyplot as plt
 
 import augmentations as aug
 from distributed import init_distributed_mode
@@ -129,10 +130,22 @@ def main(args):
 
     start_time = last_logging = time.time()
     scaler = torch.cuda.amp.GradScaler()
+    viz = False
     for epoch in range(start_epoch, start_epoch+args.epochs):
         print('epoch ', epoch)
         sampler.set_epoch(epoch)
         for step, ((x, y), _) in enumerate(loader, start=epoch * len(loader)):
+            if viz:
+                xp1 = torch.permute(x[0], (1,2,0))
+                yp1 = torch.permute(y[0], (1,2,0))
+                xp2 = torch.permute(x[1], (1,2,0))
+                yp2 = torch.permute(y[1], (1,2,0))
+                f, ax = plt.subplots(2,2)
+                ax[0,0].imshow(xp1)
+                ax[0,1].imshow(yp1)
+                ax[1,0].imshow(xp2)
+                ax[1,1].imshow(yp2)
+                import pdb; pdb.set_trace()
             x = x.cuda(gpu, non_blocking=True)
             y = y.cuda(gpu, non_blocking=True)
 

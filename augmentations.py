@@ -61,10 +61,13 @@ class TrainTransform(object):
         )
         self.transform_prime = transforms.Compose(
             [
+                transforms.RandomRotation(
+                    15, interpolation=InterpolationMode.BICUBIC, fill=255
+                ),
                 transforms.RandomResizedCrop(
                     224, interpolation=InterpolationMode.BICUBIC
                 ),
-                transforms.RandomHorizontalFlip(p=0.5),
+                # transforms.RandomHorizontalFlip(p=0.5),
                 # transforms.RandomApply(
                 #     [
                 #         transforms.ColorJitter(
