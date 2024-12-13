@@ -38,7 +38,7 @@ class TrainTransform(object):
     def __init__(self):
         self.transform = transforms.Compose(
             [
-                transforms.Resize(
+                transforms.RandomResizedCrop(
                     224, interpolation=InterpolationMode.BICUBIC
                 ),
                 transforms.RandomHorizontalFlip(p=0.5),
