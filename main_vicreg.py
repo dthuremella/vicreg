@@ -42,6 +42,8 @@ def get_arguments():
     # Model
     parser.add_argument("--arch", type=str, default="resnet50",
                         help='Architecture of the backbone encoder network')
+    parser.add_argument("--suffix", type=str, default="",
+                        help='which model suffix')
     parser.add_argument("--mlp", default="8192-8192-8192",
                         help='Size and number of layers of the MLP expander head')
 
@@ -95,7 +97,7 @@ def main(args):
 
     transforms = aug.TrainTransform()
 
-    dataset = datasets.ImageFolder(args.data_dir / "train", transforms) 
+    dataset = datasets.ImageFolder(args.data_dir / "train{}".format(args.suffix), transforms) 
     sampler = torch.utils.data.distributed.DistributedSampler(dataset, shuffle=True)
     assert args.batch_size % args.world_size == 0
     per_device_batch_size = args.batch_size // args.world_size
@@ -118,10 +120,10 @@ def main(args):
         lars_adaptation_filter=exclude_bias_and_norm,
     )
 
-    if (args.exp_dir / "model.pth").is_file():
+    if (args.exp_dir / "model{}.pth".format(args.suffix)).is_file():
         if args.rank == 0:
-            print("resuming from checkpoint")
-        ckpt = torch.load(args.exp_dir / "model.pth", map_location="cpu")
+            print("resuming from checkpoint in model {}".format("model{}.pth".format(args.suffix)))
+        ckpt = torch.load(args.exp_dir / "model{}.pth".format(args.suffix), map_location="cpu")
         start_epoch = ckpt["epoch"]
         model.load_state_dict(ckpt["model"])
         optimizer.load_state_dict(ckpt["optimizer"])
@@ -130,7 +132,7 @@ def main(args):
 
     start_time = last_logging = time.time()
     scaler = torch.cuda.amp.GradScaler()
-    viz = True
+    viz = False
     for epoch in range(start_epoch, start_epoch+args.epochs):
         print('epoch ', epoch)
         sampler.set_epoch(epoch)
@@ -175,7 +177,7 @@ def main(args):
                 model=model.state_dict(),
                 optimizer=optimizer.state_dict(),
             )
-            torch.save(state, args.exp_dir / "model.pth")
+            torch.save(state, args.exp_dir / "model{}.pth".format(args.suffix))
     if args.rank == 0:
         torch.save(model.module.backbone.state_dict(), args.exp_dir / "resnet50.pth")
 
